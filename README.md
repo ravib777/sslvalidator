@@ -50,6 +50,40 @@ The application uses several configuration parameters for SSL/TLS communication.
 - `cipherCheck`: Enables or disables cipher suite checks. Default is `true`.
 - `listCiphers`: A comma-separated list of cipher suites to use. The default value depends on the JVM configuration and the protocol version.
 
+### Examples
+
+#### To Verify SSL connectivity to a ssl endpoint with default truststore
+```shell
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost google.com --sslPort 443
+```
+
+#### To Verify SSL connectivity to a ssl endpoint with custom truststore
+```shell
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost google.com --sslPort 443 --trustStorePath truststore.jks --trustStorePassword password
+
+```
+
+#### To Verify SSL connectivity to a ssl endpoint with mTLS
+```shell
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost google.com --sslPort 443  --keyStorePath keystore.jks --keyStorePassword password  --trustStorePath truststore.jks --trustStorePassword password --mTLS true 
+```
+
+#### To Verify SSL connectivity to a ssl endpoint with custom truststore and also validate ciphers
+```shell
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost google.com --sslPort 443 --trustStorePath truststore.jks --trustStorePassword password --cipherCheck true 
+```
+
+#### To Verify SSL connectivity to a ssl endpoint with mTLS and also validate ciphers
+```shell
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost google.com --sslPort 443  --keyStorePath keystore.jks --keyStorePassword password  --trustStorePath truststore.jks --trustStorePassword password --mTLS true --cipherCheck true 
+```
+
+#### To list ciphers supported on local node
+When using `--listCiphers true` all other options will be ignored
+```shell
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --listCiphers true
+```
+
 ### Important Notes
 
 - Ensure that the `keyStorePath` and `trustStorePath` are correctly set to point to your keystore and truststore files, respectively.
