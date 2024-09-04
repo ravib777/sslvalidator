@@ -31,7 +31,7 @@ This command compiles the project and produces a runnable artifact if compilatio
 To run the application, execute the following command in the terminal from the project's root directory:
 
 ```shell
-java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost localhost --sslPort 443 --keyStorePath keystore.jks --keyStorePassword password --trustStorePath truststore.jks --trustStorePassword password --mTLS true --protocol --cipherCheck true --listCiphers false
+java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost localhost --sslPort 443 --keyStorePath keystore.jks --keyStorePassword password --trustStorePath truststore.jks --trustStorePassword password --mTLS true --protocol TLSv1.2 --cipherCheck true --listCiphers false
 ```
 
 
