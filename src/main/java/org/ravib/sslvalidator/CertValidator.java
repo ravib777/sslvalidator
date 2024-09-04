@@ -141,8 +141,11 @@ public class CertValidator {
 
                 } catch (SSLException e) {
                     System.out.print("SSL Handshake Failed! Error: \n\t\t\"" + e.getMessage() + "\"");
-                    if (e.getMessage().equals("Received fatal alert: handshake_failure") && !cipherCheck) {
+                    if (e.getMessage().contains("Received fatal alert: handshake_failure") && !cipherCheck) {
                         System.out.println(". Run the command again with \"--cipherCheck true\" to check if there is a cipher mismatch");
+                    }
+                    if (e.getMessage().contains("unable to find valid certification path to requested target")) {
+                        System.out.println(". The client's truststore does not seem to have CA cert.");
                     }
                 }
 
@@ -223,7 +226,7 @@ public class CertValidator {
                 }
             }
         } else {
-            context.init(null,null,null);
+            context.init(null, null, null);
             String[] defaultCiphers = context.getSocketFactory().getSupportedCipherSuites();
             System.out.println("Listing out all " + defaultCiphers.length + " default ciphers on this node:");
             for (String cipher : defaultCiphers) {
@@ -272,4 +275,4 @@ public class CertValidator {
             }
         }
     }
-}   
+} 
