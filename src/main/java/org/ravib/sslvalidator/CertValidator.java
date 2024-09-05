@@ -79,7 +79,8 @@ public class CertValidator {
         SSLContext context;
         TrustManagerFactory tmf;
 
-        if (listCiphers == true && cipherCheck == true) {
+        if (listCiphers == true && cipherCheck == true || listCiphers == true && sslHost != null || listCiphers == true && sslPort != null) {
+            System.out.println("ignoring --listCiphers");
             listCiphers = false;
         }
 
@@ -120,13 +121,13 @@ public class CertValidator {
                 X509KeyManager defaultKeyManager = (X509KeyManager) kmf.getKeyManagers()[0];
                 context.init(new KeyManager[]{defaultKeyManager}, new TrustManager[]{tm}, null);
                 factory = context.getSocketFactory();
-                System.out.println("Opening a SSL connection to " + sslHost + ":" + sslPort);
+                System.out.println("Attempting to open an SSL connection to " + sslHost + ":" + sslPort);
                 socket = (SSLSocket) factory.createSocket(sslHost, sslPort);
                 socket.setNeedClientAuth(true);
             } else {
                 context.init(null, new TrustManager[]{tm}, null);
                 factory = context.getSocketFactory();
-                System.out.println("Opening a SSL connection to " + sslHost + ":" + sslPort);
+                System.out.println("Attempting to open an SSL connection to " + sslHost + ":" + sslPort);
                 socket = (SSLSocket) factory.createSocket(sslHost, sslPort);
             }
 
@@ -140,12 +141,13 @@ public class CertValidator {
                     handshakeResult = true;
 
                 } catch (SSLException e) {
-                    System.out.print("SSL Handshake Failed! Error: \n\t\t\"" + e.getMessage() + "\"");
+                    System.out.println("**Error Encountered:**");
+                    System.out.print("\n**SSL Handshake Failed** Error: \n\t\t\"" + e.getMessage() + "\"");
                     if (e.getMessage().contains("Received fatal alert: handshake_failure") && !cipherCheck) {
                         System.out.println(". Run the command again with \"--cipherCheck true\" to check if there is a cipher mismatch");
                     }
                     if (e.getMessage().contains("unable to find valid certification path to requested target")) {
-                        System.out.println(". The client's truststore does not seem to have CA cert.");
+                        System.out.println(". The client's truststore does not seem to have required CA cert. Review the CA validation output below.");
                     }
                 }
 
@@ -157,7 +159,7 @@ public class CertValidator {
 
                 Boolean trustStoreFaulty = false;
                 if (!handshakeResult && serverCerts != null) {
-                    System.out.println("\n\nValidating if CA cert for Server's Certificate is present in client's truststore");
+                    System.out.println("\n\n**Certificate Validation:**\nValidating if CA cert for Server's Certificate is present in client's truststore");
                     for (X509Certificate cert : serverCerts) {
                         try {
                             cert.checkValidity();
@@ -178,13 +180,17 @@ public class CertValidator {
                                 System.out.println("\tMissing or untrusted certificate in client's truststore: " + cert.getSubjectDN() + "\n\t and its issuer is " + cert.getIssuerDN() + ". \n\tError received while parsing this cert is:" + e.getMessage());
                             }
                             if (mTLS) {
-                                System.out.println("Skipping validating client's keystore as client's truststore has issues. Fix client's truststore and run the command again to validate client's keystore.");
+                                System.out.println("\nSkipping validating client's keystore as client's truststore has issues. Fix client's truststore and run the command again to validate client's keystore.");
                             }
                         }
                     }
                 }
                 if (!handshakeResult && mTLS && serverCerts != null && !trustStoreFaulty) {
                     System.out.println("\nConnection type was set to mTLS. Reading client's keystore now");
+                    if (keyStore == null) {
+                        System.out.println("\t--keyStorePath & --keyStorePassword missing for mTLS connection test. Exiting");
+                        System.exit(1);
+                    }
                     Enumeration<String> aliases = keyStore.aliases();
                     while (aliases.hasMoreElements()) {
                         String alias = aliases.nextElement();
@@ -219,7 +225,8 @@ public class CertValidator {
                     }
                 }
                 if (cipherCheck) {
-                    System.out.println("\nValidating ciphers from server");
+                    System.out.println("\n**Cipher Validation:**");
+                    System.out.println("\tValidating ciphers from server");
                     CipherValidator cipherValidator = new CipherValidator();
                     cipherValidator.validateCipher(context, sslHost, sslPort);
 
@@ -228,7 +235,8 @@ public class CertValidator {
         } else {
             context.init(null, null, null);
             String[] defaultCiphers = context.getSocketFactory().getSupportedCipherSuites();
-            System.out.println("Listing out all " + defaultCiphers.length + " default ciphers on this node:");
+            System.out.println("\n**Listing Cipher:**");
+            System.out.println("Following are " + defaultCiphers.length + " default ciphers on this node:");
             for (String cipher : defaultCiphers) {
                 System.out.println("\t" + cipher);
             }
@@ -275,4 +283,4 @@ public class CertValidator {
             }
         }
     }
-} 
+}   
