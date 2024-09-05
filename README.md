@@ -84,6 +84,12 @@ When using `--listCiphers true` all other options will be ignored
 java -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --listCiphers true
 ```
 
+#### To enable SSL DEBUG logging
+When running any operation with this tool, add ` -Djavax.net.debug=all` option to enable SSL Debug logging. Example:
+```shell
+java  -Djavax.net.debug=all   -jar target/certValidator-1.0-SNAPSHOT-jar-with-dependencies.jar --sslHost google.com --sslPort 443
+```
+
 ### Important Notes
 
 - Ensure that the `keyStorePath` and `trustStorePath` are correctly set to point to your keystore and truststore files, respectively.
