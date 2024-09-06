@@ -2,6 +2,7 @@ package org.ravib.sslvalidator;
 
 import javax.net.ssl.*;
 import java.io.FileInputStream;
+import java.net.URL;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.*;
@@ -114,7 +115,7 @@ public class CertValidator {
             KeyStore keyStore = null;
 
             if (keyStorePath != null && mTLS) {
-                keyStore = KeyStore.getInstance("JKS");
+                keyStore = KeyStore.getInstance("PKCS12");
                 keyStore.load(new FileInputStream(keyStorePath), keyStorePassword.toCharArray());
                 KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
                 kmf.init(keyStore, keyStorePassword.toCharArray());
@@ -141,10 +142,14 @@ public class CertValidator {
                     handshakeResult = true;
 
                 } catch (SSLException e) {
-                    System.out.println("**Error Encountered:**");
-                    System.out.print("\n**SSL Handshake Failed** Error: \n\t\t\"" + e.getMessage() + "\"");
+                    System.out.println("**Error Encountered**");
+                    System.out.print("**SSL Handshake Failed** Error: \n\t\t\"" + e.getMessage() + "\"");
                     if (e.getMessage().contains("Received fatal alert: handshake_failure") && !cipherCheck) {
-                        System.out.println(". Run the command again with \"--cipherCheck true\" to check if there is a cipher mismatch");
+                        System.out.println("Try running Error possibly due to unsupported TLS Protocol and Cipher Suites. Try running this command with different \"--protocol <TLSvXX>\" or if possible listing ciphers on both client and server nodes using \"--listCiphers true\"");
+                    }
+                    else if(e.getMessage().contains("Received fatal alert: handshake_failure") && cipherCheck){
+                        cipherCheck=false;
+                        System.out.println("Skipping cipherCheck! Error possibly due to unsupported TLS Protocol and Cipher Suites. Try running this with different \"--protocol <TLSvXX>\" or if possible listing ciphers on both client and server nodes using \"--listCiphers true\"");
                     }
                     if (e.getMessage().contains("unable to find valid certification path to requested target")) {
                         System.out.println(". The client's truststore does not seem to have required CA cert. Review the CA validation output below.");
@@ -154,7 +159,7 @@ public class CertValidator {
                 X509Certificate[] serverCerts = tm.chain;
 
                 if (serverCerts == null) {
-                    System.out.println("\nCould not even obtain server's certificate chain. Check server's certificates using openssl or keytool");
+                    System.out.println("Could not obtain server's certificate chain!");
                 }
 
                 Boolean trustStoreFaulty = false;
@@ -175,9 +180,9 @@ public class CertValidator {
                         } catch (CertificateException e) {
                             trustStoreFaulty = true;
                             if (cert.getIssuerDN().equals(cert.getIssuerDN())) {
-                                System.out.println("\tMissing or untrusted certificate in client's truststore: " + cert.getSubjectDN() + ". \n\tError received while parsing this cert is:" + e.getMessage());
+                                System.out.println("\tThis CA cert is missing in client's truststore: " + cert.getSubjectDN() + ". \n\tError received while parsing this cert is:" + e.getMessage());
                             } else {
-                                System.out.println("\tMissing or untrusted certificate in client's truststore: " + cert.getSubjectDN() + "\n\t and its issuer is " + cert.getIssuerDN() + ". \n\tError received while parsing this cert is:" + e.getMessage());
+                                System.out.println("\tThis CA cert is missing in client's truststore: " + cert.getSubjectDN() + "\n\t and its issuer is " + cert.getIssuerDN() + ". \n\tError received while parsing this cert is:" + e.getMessage());
                             }
                             if (mTLS) {
                                 System.out.println("\nSkipping validating client's keystore as client's truststore has issues. Fix client's truststore and run the command again to validate client's keystore.");
@@ -210,7 +215,7 @@ public class CertValidator {
                                 try {
                                     clientCert.checkValidity();
                                 } catch (CertificateExpiredException cee) {
-                                    System.out.println("\tCertificate " + clientCert.getSubjectDN() + " expired on " + clientCert.getNotAfter());
+                                    System.out.println("\tClient's Certificate " + clientCert.getSubjectDN() + " expired on " + clientCert.getNotAfter());
                                 }
                             }
 
@@ -226,10 +231,43 @@ public class CertValidator {
                 }
                 if (cipherCheck) {
                     System.out.println("\n**Cipher Validation:**");
-                    System.out.println("\tValidating ciphers from server");
-                    CipherValidator cipherValidator = new CipherValidator();
-                    cipherValidator.validateCipher(context, sslHost, sslPort);
+                    System.out.println("\tValidating if local ciphers are supported by the server");
 
+                    String[] defaultCiphers = factory.getSupportedCipherSuites();
+
+                    List<String> supportedCiphers = new ArrayList<>();
+                    List<String> unsupportedCiphers = new ArrayList<>();
+
+                    for (String cipher : defaultCiphers) {
+                        try {
+
+                            HttpsURLConnection.setDefaultSSLSocketFactory(new CustomSSLSocketFactory(context,cipher));
+                            URL url = new URL("https://"+sslHost+":"+sslPort);
+                            HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
+                            connection.setConnectTimeout(30000);
+                            connection.connect();
+                            supportedCiphers.add(cipher);
+                            connection.disconnect();
+                        } catch (Exception e) {
+                            unsupportedCiphers.add(cipher);
+                        }
+                    }
+
+                    System.out.println("Unsupported or failed ciphers on client side that are not supported on server");
+                    for (String cipher : unsupportedCiphers) {
+                        System.out.println("\t" + cipher);
+                    }
+
+                    if(supportedCiphers.size()>0) {
+                        System.out.println("Supported " + supportedCiphers.size() + " ciphers are listed below");
+                        for (String cipher : supportedCiphers) {
+                            System.out.println("\t" + cipher);
+                        }
+                    }
+                    else {
+                        System.out.println("There are no common ciphers. Server must support one of the ciphers listed above. \nTo check the cipher being used on the server run this tool only with \"--listCiphers true\" option on the server node");
+
+                    }
                 }
             }
         } else {
