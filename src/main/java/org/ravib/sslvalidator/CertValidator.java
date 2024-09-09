@@ -137,7 +137,6 @@ public class CertValidator {
                 Boolean handshakeResult = false;
                 try {
                     socket.startHandshake();
-                    socket.close();
                     System.out.println("SSL Handshake Successful! Skipping Certificate validation");
                     handshakeResult = true;
 
@@ -149,7 +148,7 @@ public class CertValidator {
                     }
                     else if(e.getMessage().contains("Received fatal alert: handshake_failure") && cipherCheck){
                         cipherCheck=false;
-                        System.out.println("Skipping cipherCheck! Error possibly due to unsupported TLS Protocol and Cipher Suites. Try running this with different \"--protocol <TLSvXX>\" or if possible listing ciphers on both client and server nodes using \"--listCiphers true\"");
+                        System.out.println(". Skipping cipherCheck! Error possibly due to unsupported TLS Protocol and Cipher Suites. Try running this with different \"--protocol <TLSvXX>\" or if possible listing ciphers on both client and server nodes using \"--listCiphers true\"");
                     }
                     if (e.getMessage().contains("unable to find valid certification path to requested target")) {
                         System.out.println(". The client's truststore does not seem to have required CA cert. Review the CA validation output below.");
@@ -159,17 +158,29 @@ public class CertValidator {
                 X509Certificate[] serverCerts = tm.chain;
 
                 if (serverCerts == null) {
-                    System.out.println("Could not obtain server's certificate chain!");
+                    System.out.println(". Could not obtain server's certificate chain!");
                 }
 
                 Boolean trustStoreFaulty = false;
                 if (!handshakeResult && serverCerts != null) {
-                    System.out.println("\n\n**Certificate Validation:**\nValidating if CA cert for Server's Certificate is present in client's truststore");
+                    System.out.println("\n\n**Certificate Validation:**");
                     for (X509Certificate cert : serverCerts) {
                         try {
                             cert.checkValidity();
                             if (cert.getBasicConstraints() == -1) {
                                 //    System.out.println("\tSkipping Private Key Cert from server :" + cert.getSubjectDN());
+                                try {
+                                    if (verifyHostname(cert, sslHost)) {
+                                        System.out.println("Found server cert. Hostname verification for server's cert successful!");
+                                    }
+                                    else {
+                                        System.out.println("Found server cert. Hostname verification failed for server's cert! This is not a problem unless SSL handshake failed with SSLPeerUnverifiedException");
+                                    }
+                                }
+                                catch (Exception e){
+                                    System.out.println("Exception thrown file verifying Hostname :" + e.getMessage());
+                                }
+                                System.out.println("Now Validating if CA cert for Server's Certificate is present in client's truststore");
                                 continue;
                             }
                             tm.checkServerTrusted(new X509Certificate[]{cert}, "RSA");
@@ -229,6 +240,7 @@ public class CertValidator {
                         }
                     }
                 }
+
                 if (cipherCheck) {
                     System.out.println("\n**Cipher Validation:**");
                     System.out.println("\tValidating if local ciphers are supported by the server");
@@ -280,6 +292,64 @@ public class CertValidator {
             }
         }
     }
+
+    private static boolean verifyHostname(Certificate certificate, String hostname) {
+        try {
+
+                if (certificate instanceof X509Certificate) {
+                    X509Certificate x509cert = (X509Certificate) certificate;
+
+                    String dn = x509cert.getSubjectX500Principal().getName();
+                    String cn = getCNFromDN(dn);
+                    if (cn != null && hostname.equalsIgnoreCase(cn)) {
+                        return true;
+                    }
+
+                    Collection<List<?>> sanList = x509cert.getSubjectAlternativeNames();
+                    if (sanList != null) {
+                        for (List<?> sanItem : sanList) {
+                            Integer type = (Integer) sanItem.get(0);
+                            if (type == 2) {
+                                String san = (String) sanItem.get(1);
+                                if (hostname.equalsIgnoreCase(san) || matchesWildcard(hostname, san)) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Hostname verification failed......");
+        }
+        return false;
+    }
+
+    private static String getCNFromDN(String dn) {
+        String cn = null;
+        if (dn != null) {
+            String[] dnParts = dn.split(",");
+            for (String dnPart : dnParts) {
+                if (dnPart.startsWith("CN=")) {
+                    cn = dnPart.substring(3);
+                    if (cn.contains("\\,")) {
+                        cn = cn.replace("\\,", ",");
+                    }
+                    break;
+                }
+            }
+        }
+        return cn;
+    }
+
+        private static boolean matchesWildcard(String hostname, String wildcard) {
+            if (!wildcard.startsWith("*.")) {
+                return false;
+            }
+
+            String baseDomain = wildcard.substring(2);
+            return hostname.endsWith(baseDomain) && hostname.length() > baseDomain.length();
+        }
 
     private static X509TrustManager findX509TrustManager(TrustManager[] trustManagers) {
         for (TrustManager tm : trustManagers) {
